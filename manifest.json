@@ -1,0 +1,18 @@
+{
+  "name": "Redox — AI Trading Chart Analyzer",
+  "short_name": "Redox",
+  "description": "AI-powered trading chart analysis with journal and live rates.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1420",
+  "theme_color": "#00aaff",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redox — Trading Chart Analyzer</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00aaff">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Poppins:wght@700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0b1420; --bg2: #0f1c2e;
+      --panel: rgba(17, 30, 46, 0.82);
+      --border: rgba(0, 170, 255, 0.18);
+      --text: #e6eef8; --muted: #7e93ab;
+      --accent: #00aaff; --accent2: #00e0a4;
+      --btn-text: #041018; --up: #00e0a4; --down: #ff3b5c;
+      --font-scale: 1;
+    }
+    html[data-theme="colorful"] {
+      --bg: #120a2a; --bg2: #1a0f3d; --panel: rgba(30,18,60,0.82);
+      --border: rgba(150,90,255,0.3); --text: #f0eaff; --muted: #a99ccc;
+      --accent: #9b5cff; --accent2: #ff5cae; --btn-text: #12061f; --up: #c084ff; --down: #ff5cae;
+    }
+    html[data-theme="neon"] {
+      --bg: #05070a; --bg2: #0a1018; --panel: rgba(10,18,26,0.9);
+      --border: rgba(255,0,200,0.3); --text: #d4faff; --muted: #6d8a94;
+      --accent: #00ffd5; --accent2: #ff00c8; --btn-text: #020a08; --up: #00ffd5; --down: #ff00c8;
+    }
+    html[data-theme="ocean"] {
+      --bg: #061a24; --bg2: #0a2a3a; --panel: rgba(10,40,55,0.82);
+      --border: rgba(0,220,200,0.25); --text: #e0fbff; --muted: #7aa5b5;
+      --accent: #00d4c8; --accent2: #3b9eff; --btn-text: #031418; --up: #00e0a4; --down: #ff6b4a;
+    }
+    html[data-theme="sunset"] {
+      --bg: #1a0a12; --bg2: #2a1020; --panel: rgba(45,15,30,0.85);
+      --border: rgba(255,120,80,0.3); --text: #ffe9e0; --muted: #c49a8e;
+      --accent: #ff7849; --accent2: #ff4d9e; --btn-text: #1a0510; --up: #ffb56b; --down: #ff4d6d;
+    }
+    html[data-theme="cyber"] {
+      --bg: #0a0a1a; --bg2: #101028; --panel: rgba(20,20,50,0.88);
+      --border: rgba(0,240,255,0.28); --text: #e0f8ff; --muted: #7a90b5;
+      --accent: #00f0ff; --accent2: #b500ff; --btn-text: #02060a; --up: #00f0ff; --down: #b500ff;
+    }
+    html[data-theme="mint"] {
+      --bg: #04140f; --bg2: #0a2018; --panel: rgba(10,35,25,0.85);
+      --border: rgba(0,255,170,0.28); --text: #e0fff5; --muted: #7ab5a0;
+      --accent: #00ffaa; --accent2: #00d4ff; --btn-text: #041a10; --up: #00ffaa; --down: #ff6b9d;
+    }
+    html[data-theme="crimson"] {
+      --bg: #1a0508; --bg2: #2a0a10; --panel: rgba(45,10,18,0.85);
+      --border: rgba(255,40,80,0.3); --text: #ffe0e5; --muted: #b58a90;
+      --accent: #ff2850; --accent2: #ff8c00; --btn-text: #1a0308; --up: #00ff88; --down: #ff2850;
+    }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+      font-size: calc(16px * var(--font-scale));
+      min-height: 100vh; width: 100%; overflow-x: hidden;
+      color: var(--text); background: var(--bg);
+      transition: background 0.5s, color 0.5s, font-size 0.2s;
+      position: relative;
+    }
+
+    .candles-bg {
+      position: fixed; inset: 0; z-index: 0;
+      display: flex; align-items: flex-end; justify-content: space-between;
+      padding: 0 10px; opacity: 0.3; pointer-events: none;
+      background: radial-gradient(circle at 50% 0%, var(--bg2), var(--bg) 70%);
+    }
+    .candle { position: relative; width: 7px; border-radius: 2px; animation: float 5s ease-in-out infinite; }
+    .candle::before { content:""; position:absolute; left:50%; transform:translateX(-50%); width:2px; height:30px; background:inherit; opacity:0.85; top:-30px; }
+    .candle.up { background: var(--up); box-shadow: 0 0 16px var(--up); }
+    .candle.down { background: var(--down); box-shadow: 0 0 16px var(--down); }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-30px)} }
+
+    .bg-watermark { position: fixed; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; opacity: 0.06; transition: transform 0.3s ease-out; }
+    .bg-watermark svg { width: 60vw; height: 60vw; max-width: 700px; max-height: 700px; }
+
+    .layout { position: relative; z-index: 1; display: flex; min-height: 100vh; }
+
+    /* ===== ADVANCED SIDEBAR ===== */
+    .sidebar {
+      width: 260px; flex-shrink: 0; background: var(--panel);
+      border-right: 1px solid var(--border); padding: 24px 18px;
+      backdrop-filter: blur(20px); display: flex; flex-direction: column; gap: 10px;
+      position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden;
+      transition: width 0.3s, padding 0.3s;
+      box-shadow: 10px 0 30px rgba(0,0,0,0.2);
+    }
+    .sidebar.collapsed {
+      width: 75px; padding: 20px 0; align-items: center;
+      background: transparent; border-right: none; box-shadow: none;
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 30px; width: 100%; }
+    .brand-logo svg { width: 40px; height: 40px; display: block; flex-shrink: 0; filter: drop-shadow(0 0 10px var(--accent)); animation: glowPulse 3s ease-in-out infinite; }
+    @keyframes glowPulse { 0%,100%{filter:drop-shadow(0 0 6px var(--accent))} 50%{filter:drop-shadow(0 0 16px var(--accent2))} }
+    .brand-text { display: flex; flex-direction: column; }
+    .brand { font-family: 'Poppins', sans-serif; font-size: 26px; font-weight: 900; letter-spacing: 1.5px; background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent)); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: gradientShift 4s linear infinite; }
+    @keyframes gradientShift { 0%{background-position:0% center} 100%{background-position:200% center} }
+    .brand-sub { font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
+    .sidebar.collapsed .brand-wrap { flex-direction: column; justify-content: center; gap: 8px; margin-bottom: 20px; }
+    .sidebar.collapsed .brand { font-size: 14px; letter-spacing: 1px; }
+    .sidebar.collapsed .brand-sub { display: none; }
+    
+    .menu-toggle {
+      font-weight: 800; color: var(--accent); border-color: var(--accent);
+      margin-left: auto; width: 36px; padding: 0; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; line-height: 1; transition: 0.2s; flex-shrink: 0;
+      background: rgba(0,170,255,0.1); border-radius: 8px;
+    }
+    .menu-toggle:hover { background: rgba(0,170,255,0.2); }
+    .sidebar.collapsed .menu-toggle { margin-left: 0; margin-top: 10px; width: 44px; height: 44px; border-radius: 50%; background: rgba(0,170,255,0.15); }
+
+    .menu-panel { 
+      display: none; flex-direction: column; gap: 8px; padding: 12px; 
+      border-radius: 16px; border: 1px solid var(--border); 
+      background: rgba(0, 0, 0, 0.2); animation: fadeUp 0.3s ease; width: 100%; 
+    }
+    .menu-panel.open { display: flex; }
+    
+    .side-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-top: 16px; margin-bottom: 6px; padding-left: 4px; }
+    
+    .side-btn {
+      width: 100%; text-align: left; padding: 12px 16px;
+      border-radius: 12px; border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.03); color: var(--text);
+      font-size: 13px; font-weight: 600; font-family: inherit;
+      cursor: pointer; transition: 0.2s;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .side-btn:hover { 
+      background: rgba(0, 170, 255, 0.1); 
+      border-color: var(--accent); 
+      transform: translateX(4px);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    
+    .side-footer { margin-top: auto; font-size: 11px; color: var(--muted); text-align: center; padding-top: 20px; width: 100%; }
+    .sidebar.collapsed .menu-panel, .sidebar.collapsed .side-footer { display: none !important; }
+
+    /* ===== CONTENT LAYOUT ===== */
+    .content { flex: 1; width: 100%; padding: 30px 40px; display: flex; flex-direction: column; gap: 20px; }
+    body.compact .content { padding: 20px 24px; }
+    
+    .topbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+    .page-title { font-family: 'Poppins', sans-serif; font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: 1px; }
+    .page-title span { color: var(--accent); }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+    .tool-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.2s; font-family: inherit; }
+    .tool-btn:hover { filter: brightness(1.3); }
+
+    .price-strip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel); font-size: 13px; font-weight: 600; }
+    .price-item { color: var(--text); }
+    .price-item .val { color: var(--accent2); font-weight: 800; }
+    .price-sep { color: var(--muted); }
+    .price-note { margin-left: auto; font-size: 10px; color: var(--muted); letter-spacing: 0.5px; }
+
+    /* NEW GRID */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 1100px) {
+      .dashboard-grid { grid-template-columns: 1fr; }
+      .sidebar { width: 200px; }
+    }
+    @media (max-width: 700px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; position: relative; flex-direction: row; flex-wrap: wrap; }
+      .content { padding: 20px; }
+    }
+
+    /* NEW PANEL DESIGN */
+    .panel { 
+      background: var(--panel); 
+      border: 1px solid var(--border); 
+      border-radius: 20px; 
+      padding: 28px; 
+      backdrop-filter: blur(16px); 
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4); 
+      transition: padding 0.3s; 
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    .panel h2 { font-size: 14px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+
+    /* NEW UPLOAD AREA */
+    .options-row { display: flex; gap: 12px; margin-bottom: 20px; width: 100%; }
+    .options-row select { flex: 1; width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-size: 14px; font-family: inherit; cursor: pointer; outline: none; }
+    
+    .upload-box { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed var(--border); border-radius: 16px; padding: 50px 20px; text-align: center; cursor: pointer; transition: 0.3s; margin-bottom: 20px; width: 100%; background: rgba(0,0,0,0.1); }
+    .upload-box:hover, .upload-box.dragover { border-color: var(--accent); background: rgba(0,170,255,0.05); box-shadow: 0 0 30px var(--border); }
+    .upload-icon-svg { width: 70px; height: 70px; display: block; filter: drop-shadow(0 0 12px var(--border)); animation: uploadFloat 3s ease-in-out infinite; margin-bottom: 16px; }
+    @keyframes uploadFloat { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.05); } }
+    .upload-box p { color: var(--muted); font-size: 15px; font-weight: 600; }
+
+    /* NEW BUTTONS */
+    .action-buttons { display: flex; gap: 16px; margin-top: 10px; justify-content: center; }
+    .analyze-btn {
+      width: 50%; padding: 16px; border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--btn-text); cursor: pointer;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: 0.2s; box-shadow: 0 10px 30px rgba(0,224,164,0.2);
+    }
+    .analyze-btn:hover { transform: translateY(-2px); box-shadow: 0 15px 40px rgba(0,224,164,0.4); }
+    .analyze-btn:disabled { opacity: 0.6; cursor: wait; transform: none; }
+    .refresh-btn {
+      width: 50%; padding: 16px; border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+      color: #fff; cursor: pointer;
+      background: linear-gradient(90deg, #ff3b5c, #ff5cae);
+      transition: 0.2s; box-shadow: 0 10px 30px rgba(255,59,92,0.2);
+    }
+    .refresh-btn:hover { transform: translateY(-2px); box-shadow: 0 15px 40px rgba(255,59,92,0.4); }
+
+    /* NEW RESULT CARD */
+    #resultCard { display: none; border-radius: 16px; padding: 24px; margin-bottom: 20px; border: 2px solid var(--border); background: rgba(0,0,0,0.2); overflow: hidden; animation: fadeUp 0.4s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+    #resultCard.t-sure { background: linear-gradient(135deg, rgba(0,170,255,0.1), rgba(0,0,0,0.2)); border-color: var(--accent); box-shadow: 0 0 30px rgba(0,170,255,0.2); }
+    #resultCard.t-super { background: linear-gradient(135deg, rgba(255,180,0,0.1), rgba(0,0,0,0.2)); border-color: #ffb400; box-shadow: 0 0 30px rgba(255,180,0,0.2); }
+    #resultCard.t-thunder { background: linear-gradient(135deg, rgba(255,60,180,0.15), rgba(120,0,255,0.1), rgba(0,0,0,0.2)); border-color: #ff3cb4; box-shadow: 0 0 40px rgba(255,60,180,0.3); }
+    #resultCard.t-skip { background: linear-gradient(135deg, rgba(120,120,140,0.1), rgba(0,0,0,0.2)); border-color: #7e93ab; }
+
+    .result-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .result-dir-wrap { display: flex; align-items: center; gap: 12px; }
+    .result-arrow { font-size: 46px; line-height: 1; }
+    .result-arrow.up { color: var(--up); text-shadow: 0 0 20px var(--up); }
+    .result-arrow.down { color: var(--down); text-shadow: 0 0 20px var(--down); }
+    .result-dir { font-family: 'Poppins', sans-serif; font-size: 28px; font-weight: 800; letter-spacing: 1px; }
+    .result-dir.up { color: var(--up); }
+    .result-dir.down { color: var(--down); }
+    .result-badge { padding: 8px 20px; border-radius: 999px; font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #041018; white-space: nowrap; }
+    .result-badge.b-sure { background: linear-gradient(90deg, #00aaff, #4fd1ff); }
+    .result-badge.b-super { background: linear-gradient(90deg, #ffb400, #ffe066); }
+    .result-badge.b-thunder { background: linear-gradient(90deg, #ff3cb4, #7b5cff, #00ffd5); color: #fff; }
+    .result-badge.b-skip { background: #7e93ab; color: #1a2029; }
+
+    .conf-bar-wrap { margin: 16px 0 12px; height: 12px; border-radius: 999px; background: rgba(255,255,255,0.05); overflow: hidden; }
+    .conf-bar { height: 100%; width: 0%; border-radius: 999px; transition: width 1s ease; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+    #resultCard.t-super .conf-bar { background: linear-gradient(90deg, #ffb400, #ffe066); }
+    #resultCard.t-thunder .conf-bar { background: linear-gradient(90deg, #ff3cb4, #7b5cff, #00ffd5); }
+    #resultCard.t-skip .conf-bar { background: #7e93ab; }
+
+    .conf-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+    #resultProbNum { font-weight: 800; color: var(--text); }
+
+    #resultText { font-size: 14px; line-height: 1.8; color: var(--text); white-space: pre-wrap; margin-top: 10px; }
+    .result-meta { margin-top: 12px; font-size: 12px; color: var(--muted); letter-spacing: 0.5px; }
+
+    .notes-box { margin-top: 16px; }
+    .notes-box textarea { width: 100%; min-height: 60px; resize: vertical; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: rgba(0,0,0,0.3); color: var(--text); font-size: 13px; font-family: inherit; outline: none; }
+    .notes-box textarea:focus { border-color: var(--accent); }
+
+    .result-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .copy-btn { flex: 1; min-width: 90px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; font-family: inherit; }
+    .copy-btn:hover { background: var(--border); }
+    .copy-btn.ok { color: var(--up); border-color: var(--up); }
+    .copy-btn.bad { color: var(--down); border-color: var(--down); }
+    
+    .pl-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .pl-label { font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: 0.5px; }
+    .pl-btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.2s; font-family: inherit; }
+    .pl-btn:hover { border-color: var(--accent); }
+    .pl-btn.active { background: var(--accent); color: var(--btn-text); border-color: var(--accent); }
+
+    #result.placeholder { color: var(--muted); font-size: 15px; line-height: 1.8; text-align: center; padding: 40px 0; }
+
+    /* INNER CARDS FOR STATS/HISTORY */
+    .inner-card { background: rgba(0,0,0,0.15); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 20px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+    .stat-cell { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 8px; text-align: center; }
+    .stat-cell .stat-num { font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 800; color: var(--accent); }
+    .stat-cell .stat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+    
+    .accuracy-box { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); margin-bottom: 16px; font-size: 13px; font-weight: 600; }
+    .accuracy-box .acc-num { font-family: 'Poppins', sans-serif; font-size: 22px; font-weight: 800; }
+
+    .history-chart { display: flex; align-items: flex-end; gap: 4px; height: 60px; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); margin-bottom: 16px; }
+    .history-chart .bar { flex: 1; border-radius: 3px 3px 0 0; min-height: 4px; background: var(--accent); opacity: 0.85; transition: 0.3s; }
+    .history-chart .bar.up { background: var(--up); }
+    .history-chart .bar.down { background: var(--down); }
+    .history-chart .bar.skip { background: #7e93ab; }
+
+    .history-title { font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-top: 10px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
+    .history-title button { font-size: 11px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-family: inherit; }
+    .history-title button:hover { color: var(--accent); border-color: var(--accent); }
+
+    .filter-row { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .filter-btn { font-size: 11px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-family: inherit; }
+    .filter-btn.active { background: var(--accent); color: var(--btn-text); border-color: var(--accent); font-weight: 700; }
+
+    .history-group-title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin: 12px 0 6px; }
+
+    .history-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 10px; background: rgba(0,0,0,0.15); border: 1px solid var(--border); margin-bottom: 8px; font-size: 13px; cursor: pointer; transition: 0.2s; }
+    .history-item:hover { border-color: var(--accent); background: rgba(0,170,255,0.05); }
+    .history-item .h-dir { font-weight: 700; }
+    .history-item .h-dir.up { color: var(--up); }
+    .history-item .h-dir.down { color: var(--down); }
+    .history-item .h-dir.skip { color: #7e93ab; }
+    .history-item .h-time { color: var(--muted); font-size: 11px; }
+    .history-item .h-mark { font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-left: 6px; font-weight: 700; }
+    .history-item .h-mark.ok { background: rgba(0,224,164,0.15); color: var(--up); }
+    .history-item .h-mark.bad { background: rgba(255,59,92,0.15); color: var(--down); }
+
+    /* MODALS & MISC */
+    #lightbox { display: none; position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; cursor: zoom-out; padding: 20px; }
+    #lightbox img { max-width: 95vw; max-height: 95vh; border-radius: 12px; box-shadow: 0 0 60px rgba(0,170,255,0.3); }
+    
+    .about-modal { display: none; position: fixed; inset: 0; z-index: 10001; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(5px); }
+    .about-modal.show { display: flex; }
+    .about-box { max-width: 460px; padding: 30px; border-radius: 20px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.6); color: var(--text); font-size: 14px; line-height: 1.8; }
+    .about-box h3 { font-family: 'Poppins', sans-serif; color: var(--accent); margin-bottom: 16px; letter-spacing: 1px; font-size: 22px; }
+    
+    .spinner { display: none; margin: 20px auto 0; width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    .confetti-piece { position: fixed; width: 8px; height: 8px; z-index: 9999; pointer-events: none; border-radius: 2px; animation: confettiFall 1.6s ease-out forwards; }
+    @keyframes confettiFall { 0%{transform:translateY(0) rotate(0deg); opacity:1} 100%{transform:translateY(80vh) rotate(720deg); opacity:0} }
+    
+    .credit { margin-top: 30px; font-size: 12px; color: var(--muted); letter-spacing: 0.6px; text-align: center; }
+    .credit span { color: var(--accent); font-weight: 600; }
+    
+    /* alert banner */
+    #alertBanner { display: none; position: sticky; top: 10px; z-index: 500; margin-bottom: 16px; padding: 18px 24px; border-radius: 16px; font-family: 'Poppins', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: 1px; text-align: center; text-transform: uppercase; color: #fff; background: linear-gradient(90deg, #ff3cb4, #7b5cff, #00ffd5); background-size: 200% auto; animation: gradientShift 2s linear infinite, bannerPulse 1.2s ease-in-out infinite; box-shadow: 0 0 50px rgba(255,60,180,0.5); }
+    @keyframes bannerPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.02)} }
+    
+    /* Second chart */
+    .second-chart { margin-top: 16px; }
+    .upload-box.small { padding: 20px 16px; margin-bottom: 12px; }
+    .upload-box.small .icon { font-size: 32px; margin-bottom: 8px; }
+    .upload-box.small p { font-size: 12px; }
+    #fileName2 { font-size: 12px; color: var(--accent2); min-height: 16px; margin-bottom: 12px; text-align: center; word-break: break-all; }
+    #previewWrap2 { display: none; margin-bottom: 16px; text-align: center; }
+    #previewImg2 { max-width: 100%; max-height: 140px; border-radius: 10px; border: 1px solid var(--border); }
+    #fileName { font-size: 13px; color: var(--accent2); min-height: 20px; margin-bottom: 16px; text-align: center; word-break: break-all; }
+    #previewWrap { display: none; margin-bottom: 20px; text-align: center; }
+    #previewImg { max-width: 100%; max-height: 250px; border-radius: 12px; border: 1px solid var(--border); cursor: zoom-in; transition: 0.2s; }
+    #previewImg:hover { filter: brightness(1.08); }
+    
+  </style>
+</head>
+<body>
+
+  <div class="candles-bg" id="candlesBg"></div>
+  <div class="bg-watermark" id="watermark">
+    <svg viewBox="0 0 100 100" fill="none">
+      <circle cx="50" cy="50" r="46" stroke="var(--accent)" stroke-width="2"/>
+      <rect x="30" y="45" width="8" height="22" rx="2" fill="var(--up)"/>
+      <line x1="34" y1="38" x2="34" y2="45" stroke="var(--up)" stroke-width="2"/>
+      <line x1="34" y1="67" x2="34" y2="74" stroke="var(--up)" stroke-width="2"/>
+      <rect x="48" y="35" width="8" height="28" rx="2" fill="var(--up)"/>
+      <line x1="52" y1="26" x2="52" y2="35" stroke="var(--up)" stroke-width="2"/>
+      <line x1="52" y1="63" x2="52" y2="72" stroke="var(--up)" stroke-width="2"/>
+      <rect x="66" y="55" width="8" height="18" rx="2" fill="var(--down)"/>
+      <line x1="70" y1="48" x2="70" y2="55" stroke="var(--down)" stroke-width="2"/>
+      <line x1="70" y1="73" x2="70" y2="80" stroke="var(--down)" stroke-width="2"/>
+      <path d="M22 70 L44 48 L56 58 L78 32" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M70 32 L78 32 L78 40" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand-wrap">
+        <div class="brand-logo">
+          <svg viewBox="0 0 100 100" fill="none">
+            <defs>
+              <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="var(--accent)"/>
+                <stop offset="100%" stop-color="var(--accent2)"/>
+              </linearGradient>
+            </defs>
+            <circle cx="50" cy="50" r="46" stroke="url(#lg)" stroke-width="4"/>
+            <rect x="30" y="45" width="8" height="22" rx="2" fill="var(--up)"/>
+            <line x1="34" y1="38" x2="34" y2="45" stroke="var(--up)" stroke-width="2"/>
+            <line x1="34" y1="67" x2="34" y2="74" stroke="var(--up)" stroke-width="2"/>
+            <rect x="48" y="35" width="8" height="28" rx="2" fill="var(--up)"/>
+            <line x1="52" y1="26" x2="52" y2="35" stroke="var(--up)" stroke-width="2"/>
+            <line x1="52" y1="63" x2="52" y2="72" stroke="var(--up)" stroke-width="2"/>
+            <rect x="66" y="55" width="8" height="18" rx="2" fill="var(--down)"/>
+            <line x1="70" y1="48" x2="70" y2="55" stroke="var(--down)" stroke-width="2"/>
+            <line x1="70" y1="73" x2="70" y2="80" stroke="var(--down)" stroke-width="2"/>
+            <path d="M22 70 L44 48 L56 58 L78 32" stroke="url(#lg)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M70 32 L78 32 L78 40" stroke="url(#lg)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="brand-text" id="brandText">
+          <div class="brand">REDOX</div>
+          <div class="brand-sub">AI Chart Analyzer</div>
+        </div>
+        <button class="side-btn menu-toggle" id="menuToggle">⋮</button>
+      </div>
+
+      <div class="menu-panel" id="menuPanel">
+        <button class="side-btn" id="themeBtn">🎨 Theme: Dark</button>
+        <button class="side-btn" id="langBtn">🌐 Language: English</button>
+        <button class="side-btn" id="soundBtn">🔊 Sound: On</button>
+        <button class="side-btn" id="compactBtn">📱 Compact Mode: Off</button>
+        <button class="side-btn" id="autoBtn">⚡ Auto-Analyze: On</button>
+
+        <div class="side-label" data-i18n="fontSize">Font Size</div>
+        <div style="display:flex;gap:8px; width:100%;">
+          <button class="side-btn" id="fontMinus" style="text-align:center; flex:1; justify-content:center;">A−</button>
+          <button class="side-btn" id="fontPlus" style="text-align:center; flex:1; justify-content:center;">A+</button>
+        </div>
+
+        <button class="side-btn" id="resetBtn" style="margin-top:12px;">♻️ Reset / New Chart</button>
+        <button class="side-btn" onclick="location.reload()">🔄 Refresh Page</button>
+        <button class="side-btn" id="aboutBtn" style="margin-top:12px;">ℹ️ About Redox</button>
+      </div>
+
+      <div class="side-footer">Built by <span style="color:var(--accent);font-weight:600;">Riyaj Abir</span></div>
+    </aside>
+
+    <div class="content">
+      
+      <div class="topbar">
+        <div class="page-title">REDOX <span>ANALYSIS</span></div>
+        <div class="toolbar">
+          <button class="tool-btn" id="pasteBtn">📋 <span data-i18n="paste">Paste</span></button>
+          <button class="tool-btn" id="exportBtn">⬇ <span data-i18n="export">Export CSV</span></button>
+        </div>
+      </div>
+
+      <div id="priceStrip" class="price-strip">
+        <span class="price-item" id="priceEurUsd">EUR/USD: —</span>
+        <span class="price-sep">|</span>
+        <span class="price-item" id="priceEurJpy">EUR/JPY: —</span>
+        <span class="price-sep">|</span>
+        <span class="price-item" id="priceGbpUsd">GBP/USD: —</span>
+        <span class="price-sep">|</span>
+        <span class="price-item" id="priceUsdJpy">USD/JPY: —</span>
+        <span class="price-sep">|</span>
+        <span class="price-item" id="priceAudUsd">AUD/USD: —</span>
+        <span class="price-sep">|</span>
+        <span class="price-item" id="priceUsdCad">USD/CAD: —</span>
+        <span class="price-sep">|</span>
+        <span class="price-item" id="liveEurUsd">EUR/USD live: —</span>
+        <span class="price-note" data-i18n="dailyRate">daily ECB rate</span>
+      </div>
+
+      <div id="alertBanner"></div>
+
+      <!-- NEW DASHBOARD LAYOUT -->
+      <div class="dashboard-grid">
+        
+        <!-- LEFT COLUMN: UPLOAD -->
+        <section class="panel">
+          <h2 data-i18n="upload">Upload Chart</h2>
+
+          <div class="options-row">
+            <select id="strategySel">
+              <option value="General" selected data-i18n="strategyGeneral">General (no style)</option>
+              <option value="Scalping" data-i18n="strategyScalping">Scalping</option>
+              <option value="Swing" data-i18n="strategySwing">Swing</option>
+              <option value="Day Trading" data-i18n="strategyDay">Day Trading</option>
+            </select>
+            <select id="timeframeSel">
+              <option value="1m" selected data-i18n="tf1m">1 min</option>
+              <option value="5m" data-i18n="tf5m">5 min</option>
+              <option value="15m" data-i18n="tf15m">15 min</option>
+              <option value="1h" data-i18n="tf1h">1 hour</option>
+            </select>
+          </div>
+
+          <div class="threshold-row" style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; font-size: 13px; color: var(--muted);">
+            <span data-i18n="minSignal">Min Signal</span>
+            <input type="range" id="thresholdSlider" min="60" max="60" value="60" step="5" disabled style="flex: 1; accent-color: var(--accent); cursor: pointer;">
+            <span id="thresholdVal" style="font-weight: 800; color: var(--accent2); min-width: 36px; text-align: right;">60%</span>
+          </div>
+
+          <label for="chartInput" class="upload-box" id="dropZone">
+            <svg viewBox="0 0 100 100" fill="none" class="upload-icon-svg">
+              <defs>
+                <linearGradient id="upGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="var(--accent)"/>
+                  <stop offset="100%" stop-color="var(--accent2)"/>
+                </linearGradient>
+              </defs>
+              <rect x="20" y="55" width="10" height="25" rx="2" fill="var(--up)"/>
+              <line x1="25" y1="48" x2="25" y2="55" stroke="var(--up)" stroke-width="3"/>
+              <line x1="25" y1="80" x2="25" y2="86" stroke="var(--up)" stroke-width="3"/>
+              <rect x="40" y="42" width="10" height="30" rx="2" fill="var(--up)"/>
+              <line x1="45" y1="33" x2="45" y2="42" stroke="var(--up)" stroke-width="3"/>
+              <line x1="45" y1="72" x2="45" y2="80" stroke="var(--up)" stroke-width="3"/>
+              <rect x="60" y="30" width="10" height="22" rx="2" fill="var(--accent2)"/>
+              <line x1="65" y1="22" x2="65" y2="30" stroke="var(--accent2)" stroke-width="3"/>
+              <line x1="65" y1="52" x2="65" y2="60" stroke="var(--accent2)" stroke-width="3"/>
+              <path d="M15 78 L32 62 L48 68 L82 30" stroke="url(#upGrad)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M72 30 L82 30 L82 40" stroke="url(#upGrad)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <p data-i18n="uploadHint">Click or drag &amp; drop your chart screenshot</p>
+          </label>
+          <input type="file" id="chartInput" accept="image/*" style="display: none;">
+          <input type="file" id="chartInput2" accept="image/*" style="display: none;">
+          
+          <div class="second-chart">
+            <label for="chartInput2" class="upload-box small" id="dropZone2">
+              <div class="icon">🖼️</div>
+              <p data-i18n="secondChart">Optional: add a second chart (larger timeframe)</p>
+            </label>
+            <div id="fileName2"></div>
+            <div id="previewWrap2">
+              <img id="previewImg2" alt="second chart preview">
+            </div>
+          </div>
+
+          <div id="fileName"></div>
+          <div id="previewWrap">
+            <img id="previewImg" alt="chart preview">
+          </div>
+
+          <div class="action-buttons">
+            <button id="analyzeBtn" class="analyze-btn">Analyze Chart (Ctrl+Enter)</button>
+            <button class="refresh-btn" id="refreshBtn">Refresh</button>
+          </div>
+          <div class="spinner" id="spinner"></div>
+        </section>
+
+        <!-- RIGHT COLUMN: RESULTS & STATS -->
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+          
+          <section class="panel" style="flex: 1;">
+            <h2 data-i18n="result">Analysis Result</h2>
+            
+            <div id="resultCard">
+              <div class="result-top">
+                <div class="result-dir-wrap">
+                  <div class="result-arrow" id="resultArrow"></div>
+                  <div class="result-dir" id="resultDir"></div>
+                </div>
+                <div class="result-badge" id="resultBadge"></div>
+              </div>
+
+              <div class="conf-label">
+                <span data-i18n="confidence">Confidence</span>
+                <span id="resultProbNum">0%</span>
+              </div>
+              <div class="conf-bar-wrap">
+                <div class="conf-bar" id="confBar"></div>
+              </div>
+
+              <div id="resultText"></div>
+              <div class="result-meta" id="resultMeta"></div>
+
+              <div class="notes-box">
+                <textarea id="notesInput" placeholder="Your notes for this signal..."></textarea>
+              </div>
+
+              <div class="result-actions">
+                <button class="copy-btn" id="copyBtn">Copy</button>
+                <button class="copy-btn" id="shareBtn">Share</button>
+                <button class="copy-btn" id="correctBtn">✓ Correct</button>
+                <button class="copy-btn" id="wrongBtn">✗ Wrong</button>
+              </div>
+              <div class="pl-row" id="plRow">
+                <span class="pl-label" data-i18n="pl">P/L:</span>
+                <button class="pl-btn" data-pl="70">+70%</button>
+                <button class="pl-btn" data-pl="80">+80%</button>
+                <button class="pl-btn" data-pl="90">+90%</button>
+                <button class="pl-btn" data-pl="-100">-100%</button>
+                <button class="pl-btn" data-pl="" data-i18n="clear">Clear</button>
+              </div>
+            </div>
+
+            <div id="result" class="placeholder">Your AI analysis will appear here after you upload a chart and press Analyze.</div>
+          </section>
+
+          <section class="panel">
+            <h2 style="font-size: 13px; border: none; padding: 0; margin-bottom: 16px;">Statistics & History</h2>
+            
+            <div class="inner-card">
+              <div class="accuracy-box">
+                <div data-i18n="journalAcc">Journal Accuracy</div>
+                <div class="acc-num" id="accNum">—</div>
+              </div>
+
+              <div class="stats-grid">
+                <div class="stat-cell"><div class="stat-num" id="statTotal">0</div><div class="stat-lbl" data-i18n="total">Total</div></div>
+                <div class="stat-cell"><div class="stat-num" id="statCorrect">0</div><div class="stat-lbl" data-i18n="correctStat">Correct</div></div>
+                <div class="stat-cell"><div class="stat-num" id="statWrong">0</div><div class="stat-lbl" data-i18n="wrongStat">Wrong</div></div>
+                <div class="stat-cell"><div class="stat-num" id="statThunder">0</div><div class="stat-lbl" data-i18n="thunder">Thunder</div></div>
+                <div class="stat-cell"><div class="stat-num" id="statPL">0%</div><div class="stat-lbl" data-i18n="netPL">Net P/L</div></div>
+              </div>
+
+              <div class="history-chart" id="historyChart"></div>
+
+              <div class="history-title">
+                <span data-i18n="recentHistory">Recent History</span>
+                <button id="clearHistoryBtn" data-i18n="clearAll">Clear</button>
+              </div>
+              <div class="filter-row" id="filterRow">
+                <button class="filter-btn active" data-filter="all" data-i18n="filterAll">All</button>
+                <button class="filter-btn" data-filter="up" data-i18n="filterUp">UP</button>
+                <button class="filter-btn" data-filter="down" data-i18n="filterDown">DOWN</button>
+                <button class="filter-btn" data-filter="thunder" data-i18n="filterThunder">Thunder</button>
+                <button class="filter-btn" data-filter="correct" data-i18n="filterCorrect">✓ Correct</button>
+                <button class="filter-btn" data-filter="wrong" data-i18n="filterWrong">✗ Wrong</button>
+                <button class="filter-btn" data-filter="notes" data-i18n="filterNotes">📝 Notes</button>
+              </div>
+              <div id="historyList"></div>
+            </div>
+
+          </section>
+        </div>
+
+      </div>
+
+      <div class="credit">Built by <span>Riyaj Abir</span></div>
+    </div>
+  </div>
+
+  <div id="lightbox"><img id="lightboxImg" alt="zoomed chart"></div>
+  <div id="aboutModal" class="about-modal">
+    <div class="about-box">
+      <h3 data-i18n="aboutTitle">About Redox</h3>
+      <p data-i18n="aboutText">Redox is an AI-powered trading chart analyzer. Upload a chart screenshot and let Gemini analyze candlestick patterns, trend, support and resistance to suggest the next candle direction.</p>
+      <p style="margin-top:10px;" data-i18n="aboutWarn">Built for personal experimental use. Not financial advice.</p>
+      <p style="margin-top:14px; font-size:12px; color:var(--muted);">Created by <span style="color:var(--accent);font-weight:600;">Riyaj Abir</span></p>
+      <button class="copy-btn" id="aboutClose" style="margin-top:18px;">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const translations = {
+      en: {
+        theme: 'Theme', sound: 'Sound', compact: 'Compact Mode', auto: 'Auto-Analyze',
+        reset: 'Reset / New Chart', refresh: 'Refresh Page', about: 'About Redox',
+        fontSize: 'Font Size', upload: 'Upload Chart', result: 'Analysis Result',
+        strategyGeneral: 'General (no style)', strategyScalping: 'Scalping', strategySwing: 'Swing', strategyDay: 'Day Trading',
+        tf1m: '1 min', tf5m: '5 min', tf15m: '15 min', tf1h: '1 hour',
+        minSignal: 'Min Signal', analyze: 'Analyze Chart (Ctrl+Enter)',
+        confidence: 'Confidence', copy: 'Copy', share: 'Share', correct: '✓ Correct', wrong: '✗ Wrong',
+        pl: 'P/L:', clear: 'Clear', journalAcc: 'Journal Accuracy',
+        total: 'Total', correctStat: 'Correct', wrongStat: 'Wrong', thunder: 'Thunder', netPL: 'Net P/L',
+        recentHistory: 'Recent History', clearAll: 'Clear',
+        filterAll: 'All', filterUp: 'UP', filterDown: 'DOWN',
+        filterThunder: 'Thunder', filterCorrect: '✓ Correct', filterWrong: '✗ Wrong', filterNotes: '📝 Notes',
+        secondChart: 'Optional: add a second chart (larger timeframe)',
+        uploadHint: 'Click or drag & drop your chart screenshot',
+        placeholder: 'Your AI analysis will appear here after you upload a chart and press Analyze.',
+        dailyRate: 'daily ECB rate', pageTitle: 'Chart Analysis',
+        paste: 'Paste', export: 'Export CSV',
+        aboutTitle: 'About Redox',
+        aboutText: 'Redox is an AI-powered trading chart analyzer. Upload a chart screenshot and let Gemini analyze candlestick patterns, trend, support and resistance to suggest the next candle direction.',
+        aboutWarn: 'Built for personal experimental use. Not financial advice.'
+      },
+      bn: {
+        theme: 'থিম', sound: 'সাউন্ড', compact: 'কমপ্যাক্ট মোড', auto: 'অটো-বিশ্লেষণ',
+        reset: 'রিসেট / নতুন চার্ট', refresh: 'পেজ রিফ্রেশ', about: 'Redox সম্পর্কে',
+        fontSize: 'লেখার আকার', upload: 'চার্ট আপলোড', result: 'বিশ্লেষণের ফলাফল',
+        strategyGeneral: 'সাধারণ (কোনো স্টাইল নেই)', strategyScalping: 'স্ক্যাল্পিং', strategySwing: 'সুইং', strategyDay: 'ডে ট্রেডিং',
+        tf1m: '১ মিনিট', tf5m: '৫ মিনিট', tf15m: '১৫ মিনিট', tf1h: '১ ঘণ্টা',
+        minSignal: 'সর্বনিম্ন সিগন্যাল', analyze: 'চার্ট বিশ্লেষণ (Ctrl+Enter)',
+        confidence: 'আত্মবিশ্বাস', copy: 'কপি', share: 'শেয়ার', correct: '✓ সঠিক', wrong: '✗ ভুল',
+        pl: 'লাভ/ক্ষতি:', clear: 'মুছুন', journalAcc: 'জার্নাল নির্ভুলতা',
+        total: 'মোট', correctStat: 'সঠিক', wrongStat: 'ভুল', thunder: 'থান্ডার', netPL: 'নেট লাভ/ক্ষতি',
+        recentHistory: 'সাম্প্রতিক হিস্টরি', clearAll: 'মুছুন',
+        filterAll: 'সব', filterUp: 'আপ', filterDown: 'ডাউন',
+        filterThunder: 'থান্ডার', filterCorrect: '✓ সঠিক', filterWrong: '✗ ভুল', filterNotes: '📝 নোট',
+        secondChart: 'ঐচ্ছিক: দ্বিতীয় চার্ট যোগ করুন (বড় টাইমফ্রেম)',
+        uploadHint: 'ক্লিক করুন বা ছবি টেনে এনে ছাড়ুন',
+        placeholder: 'চার্ট আপলোড করে Analyze চাপলে এখানে AI-র বিশ্লেষণ দেখাবে।',
+        dailyRate: 'দৈনিক ECB রেট', pageTitle: 'চার্ট বিশ্লেষণ',
+        paste: 'পেস্ট', export: 'CSV এক্সপোর্ট',
+        aboutTitle: 'Redox সম্পর্কে',
+        aboutText: 'Redox একটি AI-চালিত ট্রেডিং চার্ট বিশ্লেষণকারী। চার্টের স্ক্রিনশট আপলোড করুন, Gemini ক্যান্ডেল প্যাটার্ন, ট্রেন্ড, সাপোর্ট-রেজিস্ট্যান্স দেখে পরের ক্যান্ডেলের দিক বলবে।',
+        aboutWarn: 'শুধু ব্যক্তিগত পরীক্ষামূলক ব্যবহারের জন্য। এটি আর্থিক পরামর্শ নয়।'
+      }
+    };
+    let lang = localStorage.getItem('redoxLang') || 'en';
+    function t(key) { return translations[lang][key] || translations.en[key] || key; }
+
+    async function loadRates() {
+      const ids = {
+        eurUsd: document.getElementById('priceEurUsd'),
+        eurJpy: document.getElementById('priceEurJpy'),
+        gbpUsd: document.getElementById('priceGbpUsd'),
+        usdJpy: document.getElementById('priceUsdJpy'),
+        audUsd: document.getElementById('priceAudUsd'),
+        usdCad: document.getElementById('priceUsdCad')
+      };
+      const pairs = [
+        ['eurUsd', 'eur', 'usd', 4], ['eurJpy', 'eur', 'jpy', 2],
+        ['gbpUsd', 'gbp', 'usd', 4], ['usdJpy', 'usd', 'jpy', 2],
+        ['audUsd', 'aud', 'usd', 4], ['usdCad', 'usd', 'cad', 4]
+      ];
+      try {
+        const results = await Promise.all(pairs.map(([, base, quote]) =>
+          fetch(`https://api.frankfurter.dev/v2/rate/${base}/${quote}`).then(r => r.json())
+        ));
+        pairs.forEach(([key, , , digits], i) => {
+          const el = ids[key];
+          if (el && results[i] && results[i].rate != null) {
+            el.innerHTML = el.innerText.split(':')[0] + ': <span class="val">' + results[i].rate.toFixed(digits) + '</span>';
+          }
+        });
+      } catch (e) {
+        Object.values(ids).forEach(el => { if (el) el.innerText = el.innerText.split(':')[0] + ': —'; });
+      }
+    }
+    loadRates();
+
+    async function loadLivePrice() {
+      const el = document.getElementById('liveEurUsd');
+      try {
+        const res = await fetch('/live-price?symbol=EUR/USD');
+        const data = await res.json();
+        if (data.price) el.innerHTML = 'EUR/USD live: <span class="val">' + parseFloat(data.price).toFixed(5) + '</span>';
+        else el.innerText = 'EUR/USD live: —';
+      } catch (e) { el.innerText = 'EUR/USD live: —'; }
+    }
+    loadLivePrice();
+
+    function buildCandles() {
+      const bg = document.getElementById('candlesBg');
+      bg.innerHTML = '';
+      const count = Math.max(14, Math.floor(window.innerWidth / 34));
+      for (let i = 0; i < count; i++) {
+        const c = document.createElement('div');
+        const isUp = Math.random() > 0.5;
+        c.className = 'candle ' + (isUp ? 'up' : 'down');
+        c.style.height = (40 + Math.random() * 160) + 'px';
+        c.style.animationDelay = (Math.random() * 5).toFixed(2) + 's';
+        c.style.animationDuration = (4 + Math.random() * 4).toFixed(2) + 's';
+        bg.appendChild(c);
+      }
+    }
+    buildCandles();
+    window.addEventListener('resize', buildCandles);
+
+    const themes = ['dark','colorful','neon','ocean','sunset','cyber','mint','crimson'];
+    const themeNames = { dark:'Dark', colorful:'Colorful', neon:'Neon', ocean:'Ocean', sunset:'Sunset', cyber:'Cyber', mint:'Mint', crimson:'Crimson' };
+    const htmlEl = document.documentElement;
+    
+    const menuToggle = document.getElementById('menuToggle');
+    const menuPanel = document.getElementById('menuPanel');
+    const sidebar = document.querySelector('.sidebar');
+    menuToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+      if (!sidebar.classList.contains('collapsed')) {
+        menuPanel.classList.add('open');
+      } else {
+        menuPanel.classList.remove('open');
+      }
+    });
+
+    const themeBtn = document.getElementById('themeBtn');
+    const savedTheme = localStorage.getItem('redoxTheme') || 'dark';
+    htmlEl.dataset.theme = savedTheme;
+
+    const langBtn = document.getElementById('langBtn');
+    const soundBtn = document.getElementById('soundBtn');
+    let soundOn = localStorage.getItem('redoxSound') !== 'off';
+    const compactBtn = document.getElementById('compactBtn');
+    const autoBtn = document.getElementById('autoBtn');
+    let compactOn = localStorage.getItem('redoxCompact') === 'on';
+    let autoOn = localStorage.getItem('redoxAuto') !== 'off';
+
+    const fileInput = document.getElementById('chartInput');
+    const fileName = document.getElementById('fileName');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const spinner = document.getElementById('spinner');
+    const resultDiv = document.getElementById('result');
+    const resultCard = document.getElementById('resultCard');
+    const resultArrow = document.getElementById('resultArrow');
+    const resultDir = document.getElementById('resultDir');
+    const resultBadge = document.getElementById('resultBadge');
+    const resultProbNum = document.getElementById('resultProbNum');
+    const confBar = document.getElementById('confBar');
+    const resultText = document.getElementById('resultText');
+    const resultMeta = document.getElementById('resultMeta');
+    const notesInput = document.getElementById('notesInput');
+    const copyBtn = document.getElementById('copyBtn');
+    const shareBtn = document.getElementById('shareBtn');
+    const correctBtn = document.getElementById('correctBtn');
+    const wrongBtn = document.getElementById('wrongBtn');
+    const dropZone = document.getElementById('dropZone');
+    const previewWrap = document.getElementById('previewWrap');
+    const previewImg = document.getElementById('previewImg');
+    const historyList = document.getElementById('historyList');
+    const strategySel = document.getElementById('strategySel');
+    const timeframeSel = document.getElementById('timeframeSel');
+    const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+    const accNum = document.getElementById('accNum');
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightboxImg');
+    const pasteBtn = document.getElementById('pasteBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const alertBanner = document.getElementById('alertBanner');
+    const filterRow = document.getElementById('filterRow');
+    const historyChart = document.getElementById('historyChart');
+    const statTotal = document.getElementById('statTotal');
+    const statCorrect = document.getElementById('statCorrect');
+    const statWrong = document.getElementById('statWrong');
+    const statThunder = document.getElementById('statThunder');
+    const statPL = document.getElementById('statPL');
+    const fileInput2 = document.getElementById('chartInput2');
+    const fileName2 = document.getElementById('fileName2');
+    const previewWrap2 = document.getElementById('previewWrap2');
+    const previewImg2 = document.getElementById('previewImg2');
+    const dropZone2 = document.getElementById('dropZone2');
+    const aboutBtn = document.getElementById('aboutBtn');
+    const aboutModal = document.getElementById('aboutModal');
+    const aboutClose = document.getElementById('aboutClose');
+
+    // Refresh Button Logic
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      resetBtn.click(); 
+    });
+
+    let currentFile = null;
+    let currentFile2 = null;
+    let lastResultText = '';
+    let currentHistoryId = null;
+    let currentFilter = 'all';
+
+    function applyLang() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.dataset.i18n;
+        if (el.tagName === 'OPTION' || el.tagName === 'SPAN' || el.tagName === 'DIV' || el.tagName === 'BUTTON' || el.tagName === 'P' || el.tagName === 'H3') {
+          el.textContent = t(key);
+        }
+      });
+      document.getElementById('analyzeBtn').innerText = t('analyze');
+      if (resultDiv.classList.contains('placeholder')) resultDiv.innerText = t('placeholder');
+      renderSound(); renderCompact(); renderAuto(); renderTheme();
+      langBtn.innerText = '🌐 Language: ' + (lang === 'en' ? 'English' : 'বাংলা');
+      renderHistory();
+    }
+
+    function renderTheme() { themeBtn.innerText = '🎨 ' + t('theme') + ': ' + themeNames[htmlEl.dataset.theme]; }
+    function renderSound() { soundBtn.innerText = '🔊 ' + t('sound') + ': ' + (soundOn ? 'On' : 'Off'); }
+    function renderCompact() { compactBtn.innerText = '📱 ' + t('compact') + ': ' + (compactOn ? 'On' : 'Off'); document.body.classList.toggle('compact', compactOn); }
+    function renderAuto() { autoBtn.innerText = '⚡ ' + t('auto') + ': ' + (autoOn ? 'On' : 'Off'); }
+
+    themeBtn.addEventListener('click', () => {
+      const i = themes.indexOf(htmlEl.dataset.theme);
+      const next = themes[(i+1) % themes.length];
+      htmlEl.dataset.theme = next;
+      localStorage.setItem('redoxTheme', next);
+      renderTheme();
+    });
+
+    langBtn.addEventListener('click', () => {
+      lang = lang === 'en' ? 'bn' : 'en';
+      localStorage.setItem('redoxLang', lang);
+      applyLang();
+    });
+
+    soundBtn.addEventListener('click', () => {
+      soundOn = !soundOn;
+      localStorage.setItem('redoxSound', soundOn ? 'on' : 'off');
+      renderSound();
+    });
+
+    compactBtn.addEventListener('click', () => {
+      compactOn = !compactOn;
+      localStorage.setItem('redoxCompact', compactOn ? 'on' : 'off');
+      renderCompact();
+    });
+
+    autoBtn.addEventListener('click', () => {
+      autoOn = !autoOn;
+      localStorage.setItem('redoxAuto', autoOn ? 'on' : 'off');
+      renderAuto();
+    });
+
+    renderTheme(); renderSound(); renderCompact(); renderAuto();
+    langBtn.innerText = '🌐 Language: ' + (lang === 'en' ? 'English' : 'বাংলা');
+    if (lang === 'bn') applyLang();
+
+    let fontScale = parseFloat(localStorage.getItem('redoxFont') || '1');
+    function applyFont() {
+      document.documentElement.style.setProperty('--font-scale', fontScale);
+      localStorage.setItem('redoxFont', fontScale);
+    }
+    applyFont();
+    document.getElementById('fontMinus').addEventListener('click', () => {
+      fontScale = Math.max(0.85, +(fontScale - 0.05).toFixed(2)); applyFont();
+    });
+    document.getElementById('fontPlus').addEventListener('click', () => {
+      fontScale = Math.min(1.25, +(fontScale + 0.05).toFixed(2)); applyFont();
+    });
+
+    const watermark = document.getElementById('watermark');
+    document.addEventListener('mousemove', (e) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 30;
+      const y = (e.clientY / window.innerHeight - 0.5) * 30;
+      watermark.style.transform = `translate(${x}px, ${y}px)`;
+    });
+
+    function setFile(file, auto = true) {
+      if (!file) return;
+      if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
+      currentFile = file;
+      fileName.innerText = file.name || 'pasted-image.png';
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImg.src = e.target.result;
+        previewWrap.style.display = 'block';
+        if (auto && autoOn) runAnalysis();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function setFile2(file) {
+      if (!file) return;
+      if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
+      currentFile2 = file;
+      fileName2.innerText = file.name || 'pasted-image.png';
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImg2.src = e.target.result;
+        previewWrap2.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    fileInput.addEventListener('change', () => setFile(fileInput.files[0], true));
+    fileInput2.addEventListener('change', () => setFile2(fileInput2.files[0]));
+
+    ['dragenter','dragover'].forEach(evt =>
+      dropZone2.addEventListener(evt, (e) => { e.preventDefault(); dropZone2.classList.add('dragover'); })
+    );
+    ['dragleave','drop'].forEach(evt =>
+      dropZone2.addEventListener(evt, (e) => { e.preventDefault(); dropZone2.classList.remove('dragover'); })
+    );
+    dropZone2.addEventListener('drop', (e) => {
+      const f = e.dataTransfer.files[0];
+      if (f) setFile2(f);
+    });
+
+    ['dragenter','dragover'].forEach(evt =>
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.add('dragover'); })
+    );
+    ['dragleave','drop'].forEach(evt =>
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); })
+    );
+    dropZone.addEventListener('drop', (e) => {
+      const f = e.dataTransfer.files[0];
+      if (f) setFile(f, true);
+    });
+
+    pasteBtn.addEventListener('click', async () => {
+      try {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          for (const type of item.types) {
+            if (type.startsWith('image/')) {
+              const blob = await item.getType(type);
+              setFile(new File([blob], 'pasted-image.png', { type }), true);
+              return;
+            }
+          }
+        }
+        alert('No image found in clipboard.');
+      } catch (e) {
+        alert('Paste failed: ' + e.message);
+      }
+    });
+    document.addEventListener('paste', (e) => {
+      const items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      for (const it of items) {
+        if (it.type.startsWith('image/')) {
+          const f = it.getAsFile();
+          if (f) { setFile(f, true); break; }
+        }
+      }
+    });
+
+    previewImg.addEventListener('click', () => {
+      if (!previewImg.src) return;
+      lightboxImg.src = previewImg.src;
+      lightbox.style.display = 'flex';
+    });
+    lightbox.addEventListener('click', () => { lightbox.style.display = 'none'; });
+
+    resetBtn.addEventListener('click', () => {
+      currentFile = null; fileInput.value = '';
+      currentFile2 = null; fileInput2.value = '';
+      fileName2.innerText = ''; previewImg2.src = ''; previewWrap2.style.display = 'none';
+      fileName.innerText = ''; previewImg.src = ''; previewWrap.style.display = 'none';
+      resultCard.style.display = 'none';
+      resultDiv.style.display = 'block';
+      resultDiv.classList.add('placeholder');
+      resultDiv.innerText = t('placeholder');
+      lastResultText = ''; currentHistoryId = null;
+      alertBanner.style.display = 'none';
+      renderPLButtons(null);
+    });
+
+    function playTing(strength) {
+      if (!soundOn) return;
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'sine';
+        o.frequency.setValueAtTime(strength >= 80 ? 1200 : strength >= 70 ? 950 : 750, ctx.currentTime);
+        g.gain.setValueAtTime(0.0001, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+        o.start(); o.stop(ctx.currentTime + 0.5);
+      } catch (e) {}
+    }
+
+    function spawnConfetti(count) {
+      const colors = ['#ff3cb4','#7b5cff','#00ffd5','#ffb400','#00aaff'];
+      for (let i = 0; i < count; i++) {
+        const p = document.createElement('div');
+        p.className = 'confetti-piece';
+        p.style.left = Math.random() * 100 + 'vw';
+        p.style.top = '-10px';
+        p.style.background = colors[Math.floor(Math.random() * colors.length)];
+        p.style.animationDelay = (Math.random() * 0.5).toFixed(2) + 's';
+        p.style.animationDuration = (1.2 + Math.random() * 0.8).toFixed(2) + 's';
+        document.body.appendChild(p);
+        setTimeout(() => p.remove(), 2500);
+      }
+    }
+
+    function countUp(el, target, duration = 900) {
+      const startTime = performance.now();
+      function tick(now) {
+        const t = Math.min((now - startTime) / duration, 1);
+        const val = Math.floor(target * (1 - Math.pow(1 - t, 3)));
+        el.innerText = val + '%';
+        if (t < 1) requestAnimationFrame(tick);
+        else el.innerText = target + '%';
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function loadHistory() { return JSON.parse(localStorage.getItem('redoxHistory') || '[]'); }
+    function setHistory(arr) { localStorage.setItem('redoxHistory', JSON.stringify(arr)); }
+    function saveHistory(item) {
+      const h = loadHistory();
+      item.id = Date.now();
+      item.dateKey = new Date().toDateString();
+      h.unshift(item);
+      setHistory(h.slice(0, 30));
+      renderHistory();
+      return item.id;
+    }
+
+    function renderHistory() {
+      const all = loadHistory();
+      const h = all.filter(item => {
+        if (currentFilter === 'all') return true;
+        if (currentFilter === 'up') return item.dir === 'UP';
+        if (currentFilter === 'down') return item.dir === 'DOWN';
+        if (currentFilter === 'thunder') return item.label && item.label.includes('THUNDER');
+        if (currentFilter === 'correct') return item.outcome === 'correct';
+        if (currentFilter === 'wrong') return item.outcome === 'wrong';
+        if (currentFilter === 'notes') return !!item.notes;
+        return true;
+      });
+
+      historyList.innerHTML = '';
+      if (!h.length) {
+        historyList.innerHTML = '<div style="color:var(--muted);font-size:12px;">' + (lang === 'bn' ? 'এখনো কোনো হিস্টরি নেই।' : 'No history yet.') + '</div>';
+        renderAccuracy(); renderStats(); renderChart();
+        return;
+      }
+
+      const today = new Date().toDateString();
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      let lastGroup = '';
+      h.forEach(item => {
+        let groupName = item.dateKey === today ? (lang === 'bn' ? 'আজ' : 'Today')
+                      : item.dateKey === yesterday ? (lang === 'bn' ? 'গতকাল' : 'Yesterday')
+                      : (item.dateKey || 'Older');
+        if (groupName !== lastGroup) {
+          const gt = document.createElement('div');
+          gt.className = 'history-group-title';
+          gt.innerText = groupName;
+          historyList.appendChild(gt);
+          lastGroup = groupName;
+        }
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        const mark = item.outcome === 'correct' ? '<span class="h-mark ok">✓</span>'
+                  : item.outcome === 'wrong'   ? '<span class="h-mark bad">✗</span>' : '';
+        const plBadge = item.pl
+          ? '<span class="h-mark ' + (parseInt(item.pl) > 0 ? 'ok' : 'bad') + '">' + (parseInt(item.pl) > 0 ? '+' : '') + item.pl + '%</span>'
+          : '';
+        div.innerHTML = `
+          <div>
+            <span class="h-dir ${item.dir.toLowerCase()}">${item.dir}</span>
+            <span style="color:var(--muted)"> · ${item.prob}</span>
+            ${item.label ? '<span style="color:var(--muted)"> · ' + item.label + '</span>' : ''}
+            ${item.notes ? '<span style="color:var(--muted)" title="' + item.notes.replace(/"/g,'&quot;') + '"> 📝</span>' : ''}
+            ${mark}${plBadge}
+          </div>
+          <span class="h-time">${item.time}</span>`;
+        div.addEventListener('click', () => showHistoryDetail(item));
+        historyList.appendChild(div);
+      });
+
+      renderAccuracy(); renderStats(); renderChart();
+    }
+
+    function renderAccuracy() {
+      const h = loadHistory().filter(x => x.outcome);
+      if (!h.length) { accNum.innerText = '—'; accNum.style.color = 'var(--muted)'; return; }
+      const correct = h.filter(x => x.outcome === 'correct').length;
+      const pct = Math.round(correct / h.length * 100);
+      accNum.innerText = pct + '% (' + correct + '/' + h.length + ')';
+      accNum.style.color = pct >= 60 ? 'var(--up)' : pct >= 40 ? '#ffb400' : 'var(--down)';
+    }
+
+    function renderStats() {
+      const h = loadHistory();
+      statTotal.innerText = h.length;
+      statCorrect.innerText = h.filter(x => x.outcome === 'correct').length;
+      statWrong.innerText = h.filter(x => x.outcome === 'wrong').length;
+      statThunder.innerText = h.filter(x => x.label && x.label.includes('THUNDER')).length;
+      const totalPL = h.reduce((sum, x) => sum + (parseInt(x.pl) || 0), 0);
+      statPL.innerText = (totalPL > 0 ? '+' : '') + totalPL + '%';
+      statPL.style.color = totalPL > 0 ? 'var(--up)' : totalPL < 0 ? 'var(--down)' : 'var(--accent)';
+    }
+
+    function renderChart() {
+      const h = loadHistory().slice(0, 20).reverse();
+      historyChart.innerHTML = '';
+      if (!h.length) { historyChart.innerHTML = '<div style="color:var(--muted);font-size:11px;margin:auto;">' + (lang === 'bn' ? 'কোনো ডেটা নেই' : 'No data yet') + '</div>'; return; }
+      h.forEach(item => {
+        const bar = document.createElement('div');
+        bar.className = 'bar ' + (item.label && item.label.includes('THUNDER') ? 'skip' : item.dir.toLowerCase());
+        const p = parseInt(item.prob) || 0;
+        bar.style.height = Math.max(6, p) + '%';
+        bar.title = item.dir + ' ' + item.prob;
+        historyChart.appendChild(bar);
+      });
+    }
+
+    function showHistoryDetail(item) {
+      currentHistoryId = item.id;
+      resultDiv.innerText = '';
+      resultCard.style.display = 'block';
+      resultCard.className = '';
+      resultArrow.innerText = item.dir === 'UP' ? '↑' : item.dir === 'DOWN' ? '↓' : '•';
+      resultArrow.className = 'result-arrow ' + item.dir.toLowerCase();
+      resultDir.innerText = item.dir;
+      resultDir.className = 'result-dir ' + item.dir.toLowerCase();
+      resultBadge.style.display = item.label ? 'inline-block' : 'none';
+      resultBadge.innerText = item.label || '';
+      resultBadge.className = 'result-badge';
+      confBar.style.width = item.prob;
+      resultProbNum.innerText = item.prob;
+      resultText.innerText = (item.reason || '') + (item.patterns ? '\nPatterns: ' + item.patterns : '');
+      resultMeta.innerText = (item.strategy || '') + ' · ' + (item.timeframe || '') + ' · ' + item.time;
+      notesInput.value = item.notes || '';
+      lastResultText = `Direction: ${item.dir}\nConfidence: ${item.prob}\nReason: ${item.reason || ''}`;
+      updateJournalButtons(item.outcome);
+      renderPLButtons(item.pl);
+      if (item.pl) {
+        const plVal = parseInt(item.pl);
+        if (plVal > 0) resultCard.classList.add('t-pl-win');
+        else if (plVal < 0) resultCard.classList.add('t-pl-loss');
+      }
+    }
+
+    function updateJournalButtons(outcome) {
+      correctBtn.classList.toggle('ok', outcome === 'correct');
+      wrongBtn.classList.toggle('bad', outcome === 'wrong');
+    }
+
+    clearHistoryBtn.addEventListener('click', () => {
+      if (confirm(lang === 'bn' ? 'সব হিস্টরি মুছে ফেলবেন?' : 'Clear all history?')) { setHistory([]); renderHistory(); }
+    });
+
+    filterRow.addEventListener('click', (e) => {
+      const btn = e.target.closest('.filter-btn');
+      if (!btn) return;
+      filterRow.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.filter;
+      renderHistory();
+    });
+
+    notesInput.addEventListener('input', () => {
+      if (!currentHistoryId) return;
+      const h = loadHistory();
+      const item = h.find(x => x.id === currentHistoryId);
+      if (!item) return;
+      item.notes = notesInput.value;
+      setHistory(h);
+    });
+
+    renderHistory();
+
+    function renderPLButtons(pl) {
+      document.querySelectorAll('.pl-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.pl === (pl || ''));
+      });
+    }
+    document.getElementById('plRow').addEventListener('click', (e) => {
+      const btn = e.target.closest('.pl-btn');
+      if (!btn) return;
+      if (!currentHistoryId) { alert(lang === 'bn' ? 'আগে একটি চার্ট বিশ্লেষণ করুন।' : 'Analyze a chart first.'); return; }
+      const h = loadHistory();
+      const item = h.find(x => x.id === currentHistoryId);
+      if (!item) return;
+      item.pl = btn.dataset.pl;
+      setHistory(h);
+      renderHistory();
+      renderPLButtons(item.pl);
+    });
+
+    function markOutcome(outcome) {
+      if (!currentHistoryId) { alert(lang === 'bn' ? 'আগে একটি চার্ট বিশ্লেষণ করুন।' : 'Analyze a chart first.'); return; }
+      const h = loadHistory();
+      const item = h.find(x => x.id === currentHistoryId);
+      if (!item) return;
+      item.outcome = item.outcome === outcome ? null : outcome;
+      setHistory(h);
+      renderHistory();
+      updateJournalButtons(item.outcome);
+    }
+    correctBtn.addEventListener('click', () => markOutcome('correct'));
+    wrongBtn.addEventListener('click', () => markOutcome('wrong'));
+
+    exportBtn.addEventListener('click', () => {
+      const h = loadHistory();
+      if (!h.length) { alert(lang === 'bn' ? 'এক্সপোর্ট করার মতো হিস্টরি নেই।' : 'No history to export.'); return; }
+      const rows = [['Date','Time','Direction','Confidence','Label','Strategy','Timeframe','Outcome','Notes','Reason']];
+      h.forEach(item => {
+        rows.push([
+          item.dateKey || '', item.time || '', item.dir || '', item.prob || '',
+          item.label || '', item.strategy || '', item.timeframe || '', item.outcome || '',
+          (item.notes || '').replace(/"/g,'""'), (item.reason || '').replace(/"/g,'""')
+        ]);
+      });
+      const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'redox-history-' + new Date().toISOString().slice(0,10) + '.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    async function runAnalysis() {
+      if (!currentFile) {
+        resultDiv.style.display = 'block';
+        resultDiv.classList.remove('placeholder');
+        resultDiv.innerText = lang === 'bn' ? 'আগে একটি চার্টের ছবি বেছে নিন।' : 'Please select a chart screenshot first.';
+        return;
+      }
+      resultDiv.classList.remove('placeholder');
+      resultDiv.innerText = lang === 'bn' ? 'বিশ্লেষণ চলছে...' : 'Analyzing...';
+      resultCard.style.display = 'none';
+      alertBanner.style.display = 'none';
+      spinner.style.display = 'block';
+      analyzeBtn.disabled = true;
+
+      const formData = new FormData();
+      formData.append('chart', currentFile);
+      formData.append('strategy', strategySel.value);
+      formData.append('timeframe', timeframeSel.value);
+      if (currentFile2) formData.append('chart2', currentFile2);
+
+      try {
+        const res = await fetch('/analyze', { 
+  method: 'POST', 
+  body: formData,
+  headers: {
+    'ngrok-skip-browser-warning': '1'
+  }
+});
+        const data = await res.json();
+        if (data.error) { resultDiv.innerText = data.error; return; }
+
+        const a = data.analysis;
+        const dir = a.direction;
+        const prob = Math.min(100, Math.round(a.confidence || 0));
+        const reason = a.reason || '';
+        const patterns = (a.patterns_seen || []).join(', ');
+        const support = a.support || 'N/A';
+        const resistance = a.resistance || 'N/A';
+        const supDist = a.support_distance_pct != null ? a.support_distance_pct.toFixed(2) : '0';
+        const resDist = a.resistance_distance_pct != null ? a.resistance_distance_pct.toFixed(2) : '0';
+        lastResultText = `Direction: ${dir}\nConfidence: ${prob}%\nPatterns: ${patterns}\nReason: ${reason}`;
+        resultDiv.innerText = '';
+        currentHistoryId = null;
+        notesInput.value = '';
+        updateJournalButtons(null);
+        renderPLButtons(null);
+
+        if (dir === 'NEUTRAL') {
+          resultCard.className = '';
+          resultCard.style.display = 'block';
+          resultArrow.innerText = '•';
+          resultArrow.className = 'result-arrow';
+          resultDir.innerText = 'NEUTRAL';
+          resultDir.className = 'result-dir';
+          resultBadge.style.display = 'none';
+          confBar.style.width = '0%';
+          resultProbNum.innerText = '—';
+          resultText.innerText =
+            (reason ? reason + '\n' : '') +
+            (patterns ? 'Patterns: ' + patterns + '\n' : '') +
+            'Support: ' + support + ' (' + supDist + '% away)  |  Resistance: ' + resistance + ' (' + resDist + '% away)';
+          resultMeta.innerText = `${strategySel.value} · ${timeframeSel.value} · ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+          return;
+        }
+        if (prob < 60) {
+          resultCard.className = 't-skip';
+          resultCard.style.display = 'block';
+          resultArrow.innerText = '•';
+          resultArrow.className = 'result-arrow';
+          resultDir.innerText = 'NO TRADE';
+          resultDir.className = 'result-dir';
+          resultBadge.innerText = 'BELOW 60%';
+          resultBadge.className = 'result-badge b-skip';
+          resultBadge.style.display = 'inline-block';
+          confBar.style.width = prob + '%';
+          resultProbNum.innerText = prob + '%';
+          resultText.innerText = (lang === 'bn' ? '৬০%-এর নিচে — ট্রেড করবেন না। ' : 'Below 60% — no trade. ') + (reason ? '\n' + reason : '');
+          resultMeta.innerText = `${strategySel.value} · ${timeframeSel.value} · ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+          saveHistory({
+            dir: 'SKIP', prob: prob + '%', label: 'BELOW 60%',
+            reason, patterns,
+            strategy: strategySel.value, timeframe: timeframeSel.value, notes: '',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          });
+          return;
+        }
+
+        let label = '', tier = '';
+        if (prob >= 80) { label = dir === 'UP' ? 'THUNDER LONG' : 'THUNDER SHORT'; tier = 'thunder'; }
+        else if (prob >= 70) { label = dir === 'UP' ? 'SUPER LONG' : 'SUPER SHORT'; tier = 'super'; }
+        else { label = dir === 'UP' ? 'SURE LONG' : 'SURE SHORT'; tier = 'sure'; }
+
+        resultArrow.innerText = dir === 'UP' ? '↑' : '↓';
+        resultArrow.className = 'result-arrow ' + dir.toLowerCase();
+        resultDir.innerText = dir;
+        resultDir.className = 'result-dir ' + dir.toLowerCase();
+        resultBadge.innerText = label;
+        resultBadge.className = 'result-badge b-' + tier;
+        resultBadge.style.display = 'inline-block';
+        resultCard.className = 't-' + tier;
+
+        confBar.style.width = '0%';
+        resultProbNum.innerText = '0%';
+        setTimeout(() => { confBar.style.width = prob + '%'; countUp(resultProbNum, prob); }, 60);
+
+        resultText.innerText =
+          (reason ? reason + '\n' : '') +
+          (patterns ? 'Patterns: ' + patterns + '\n' : '') +
+          'Support: ' + support + ' (' + supDist + '% away)  |  Resistance: ' + resistance + ' (' + resDist + '% away)';
+        resultMeta.innerText = `${strategySel.value} · ${timeframeSel.value} · ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+        resultCard.style.display = 'block';
+
+        if (prob >= 80) {
+          alertBanner.innerText = '⚡ ' + label + ' — ' + prob + '% CONFIDENCE ⚡';
+          alertBanner.style.display = 'block';
+          setTimeout(() => { alertBanner.style.display = 'none'; }, 8000);
+        }
+
+        currentHistoryId = saveHistory({
+          dir, prob: prob + '%', label, reason, patterns,
+          strategy: strategySel.value, timeframe: timeframeSel.value, notes: '',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+        playTing(prob);
+        if (prob >= 80) spawnConfetti(40);
+
+      } catch (err) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerText = 'Error: ' + err.message;
+      } finally {
+        spinner.style.display = 'none';
+        analyzeBtn.disabled = false;
+      }
+    }
+    analyzeBtn.addEventListener('click', runAnalysis);
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (!analyzeBtn.disabled) runAnalysis();
+      }
+    });
+
+    aboutBtn.addEventListener('click', () => aboutModal.classList.add('show'));
+    aboutClose.addEventListener('click', () => aboutModal.classList.remove('show'));
+    aboutModal.addEventListener('click', (e) => { if (e.target === aboutModal) aboutModal.classList.remove('show'); });
+
+    copyBtn.addEventListener('click', () => {
+      if (!lastResultText) return;
+      navigator.clipboard.writeText(lastResultText).then(() => {
+        copyBtn.innerText = 'Copied!';
+        setTimeout(() => copyBtn.innerText = t('copy'), 1500);
+      });
+    });
+    shareBtn.addEventListener('click', async () => {
+      if (!lastResultText) return;
+      if (navigator.share) {
+        try { await navigator.share({ title: 'Redox Analysis', text: lastResultText }); } catch (e) {}
+      } else {
+        navigator.clipboard.writeText(lastResultText).then(() => {
+          shareBtn.innerText = 'Copied!';
+          setTimeout(() => shareBtn.innerText = t('share'), 1500);
+        });
+      }
+    });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
