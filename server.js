@@ -8,7 +8,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const upload = multer({ storage: multer.memoryStorage() });
-
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.get('/live-price', async (req, res) => {
@@ -27,6 +26,7 @@ app.get('/live-price', async (req, res) => {
   }
 });
 
+// Explicitly serve all static files
 app.get('/manifest.json', (req, res) => {
   res.sendFile(path.join(__dirname, 'manifest.json'));
 });
@@ -94,11 +94,11 @@ Rules:
 - current_price is the closing price of the most recent (last) candle visible in the chart. Use a number.
 - support is the nearest visible support price (or "N/A" if not visible).
 - resistance is the nearest visible resistance price (or "N/A" if not visible).
-- resistance_distance_pct is the percentage distance from current_price to the resistance level.Use a positive number. If support is N/A, use 0.
-- resistance_distance_pct is the percentage distance from the current price to the resistance level. Use a positive number. If resistance is N/A, use 0.
+- support_distance_pct is the percentage distance from current_price to the support level. Use a positive number. If support is N/A, use 0.
+- resistance_distance_pct is the percentage distance from current_price to the resistance level. Use a positive number. If resistance is N/A, use 0.
 - reason is one short sentence.`;
 
-        const imagePart1 = {
+    const imagePart1 = {
       inlineData: {
         data: chart1.buffer.toString('base64'),
         mimeType: chart1.mimetype,
