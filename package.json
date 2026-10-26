@@ -1,3 +1,4 @@
+
 {
   "name": "redox",
   "version": "1.0.0",
@@ -16,6 +17,7 @@
     "@google/generative-ai": "^0.24.1",
     "dotenv": "^18.0.8",
     "express": "^5.3.0",
-    "multer": "^2.5.0"
+    "multer": "^2.5.0",
+    "mongodb": "^6.21.0"
   }
 }
