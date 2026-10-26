@@ -1,7 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
+const path = require('path'); 
+const { MongoClient } = require('mongodb');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
@@ -9,6 +10,36 @@ const PORT = process.env.PORT || 3000;
 
 const upload = multer({ storage: multer.memoryStorage() });
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+let mongoClient;
+let mongoDB;
+
+async function connectMongoDB() {
+  const uri = process.env.MONGODB_URI;
+
+  if (!uri) {
+    console.warn('MONGODB_URI is not configured yet.');
+    return;
+  }
+
+  try {
+    mongoClient = new MongoClient(uri);
+    await mongoClient.connect();
+
+    mongoDB = mongoClient.db();
+
+    await mongoDB.command({ ping: 1 });
+
+    console.log('MongoDB connected successfully!');
+  } catch (err) {
+    console.error('MongoDB connection failed:', err.message);
+
+    if (mongoClient) {
+      await mongoClient.close().catch(() => {});
+      mongoClient = undefined;
+      mongoDB = undefined;
+    }
+  }
+}
 
 app.get('/live-price', async (req, res) => {
   try {
@@ -139,6 +170,12 @@ Rules:
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Redox running: http://localhost:${PORT}`);
-});
+async function startServer() {
+  await connectMongoDB();
+
+  app.listen(PORT, () => {
+    console.log(`Redox running: http://localhost:${PORT}`);
+  });
+}
+
+startServer();
